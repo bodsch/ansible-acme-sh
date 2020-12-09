@@ -1,14 +1,5 @@
 ---
 
-- debug:
-    var: "{{item}}"
-  when: item is defined
-  loop:
-    - acme_sh_account_email
-    - acme_sh_renew_time_in_days
-    - acme_sh_git_clone_dest
-    - acme_sh_list_domains
-
 - name: add user {{ acme_sh_become_user }}
   user:
     name: "{{ acme_sh_become_user }}"
@@ -21,30 +12,26 @@
     line: '{{ acme_sh_become_user }} ALL=(ALL) NOPASSWD: {{ acme_ssh_sudo_cmd }}'
     state: present
     mode: 0440
-    create: yes
+    create: true
     validate: 'visudo -cf %s'
-  when: (
-    acme_sh_become_user is defined and acme_sh_become_user != 'root' and
-    acme_ssh_sudo_cmd is defined and acme_ssh_sudo_cmd != '')
+  when:
+    - acme_sh_become_user is defined
+    - acme_sh_become_user != 'root'
+    - acme_ssh_sudo_cmd is defined
+    - acme_ssh_sudo_cmd | length != 0
+
+- name: install dependencies
+  package:
+    name: [ git, "{{ acme_ssh_used_cron_daemon }}" ]
+    state: present
 
 - name: create acme challenge directory
   file:
     path: /srv/www/letsencrypt/.well-known/acme-challenge
     owner: "{{ acme_sh_become_user }}"
-    #group: "{{ __nginx_user }}"
+    # group: "{{ __nginx_user }}"
     mode: 0755
     state: directory
-
-#- name: Install dependencies
-#  apt:
-#    name: "{{ item }}"
-#    update_cache: True
-#    cache_valid_time: "{{ acme_sh_apt_cache_time }}"
-#  loop:
-#    - cron
-#    - git
-#    - wget
-#  when: not acme_sh_uninstall
 
 - name: Create git clone path
   file:
@@ -55,7 +42,7 @@
     mode: 0755
   when: not acme_sh_uninstall
 
-- name: git clone https://github.com/Neilpang/acme.sh
+- name: git clone {{ acme_sh_git_url }}
   git:
     repo: "{{ acme_sh_git_url }}"
     version: "{{ acme_sh_git_version }}"
@@ -66,7 +53,9 @@
 
 - name: Install acme.sh
   command: >-
-    ./acme.sh --install --log
+    ./acme.sh
+    --install
+    --log
     --days {{ acme_sh_renew_time_in_days }}
     {{ "--accountemail " + acme_sh_account_email if acme_sh_account_email else "" }}
   args:
@@ -159,135 +148,128 @@
     - acme_sh_uninstall | bool
   become_user: "{{ acme_sh_become_user }}"
 
-- block:
+- name: dns
+  block:
+    - name: Run custom acme.sh command
+      command: ./acme.sh {{ item.custom_command }}
+      args:
+        chdir: "~/.acme.sh"
+      environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
+      loop: "{{ acme_sh_domains }}"
+      when:
+        - acme_sh_domains and item.domains is defined and item.domains
+        - item.dns_provider | default(acme_sh_default_dns_provider)
+        - item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys)
+        - item.custom_command is defined and item.custom_command
+        - item.remove is undefined or not item.remove
+        - not acme_sh_uninstall
+      become_user: "{{ acme_sh_become_user }}"
 
-  - name: Run custom acme.sh command
-    command: ./acme.sh {{ item.custom_command }}
-    args:
-      chdir: "~/.acme.sh"
-    environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
-    loop: "{{ acme_sh_domains }}"
-    when:
-      - acme_sh_domains and item.domains is defined and item.domains
-      - item.dns_provider | default(acme_sh_default_dns_provider)
-      - item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys)
-      - item.custom_command is defined and item.custom_command
-      - item.remove is undefined or not item.remove
-      - not acme_sh_uninstall
-    become_user: "{{ acme_sh_become_user }}"
-
-  - name: Issue acme.sh certificate(s) (this will sleep for dns_sleep seconds)
-    command: >-
-      ./acme.sh
-      --issue
-      --domain {{ item.domains | join(" -d ") }}
-      --dns {{ item.dns_provider | default(acme_sh_default_dns_provider) }}
-      --dnssleep {{ item.dns_sleep | default(acme_sh_default_dns_sleep) }}
-      {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
-      {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
-      {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
-      {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"' if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
-      {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"' if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
-      {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"' if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
-      {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
-    args:
-      chdir: "~/.acme.sh"
-    environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
-    loop: "{{ acme_sh_domains }}"
-    when:
-      - acme_sh_domains and item.domains is defined and item.domains
-      - item.dns_provider | default(acme_sh_default_dns_provider)
-      - item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys)
-      - item.force_renew is undefined or not item.force_renew
-      - item.custom_command is undefined or not item.custom_command
-      - item.remove is undefined or not item.remove
-      - not acme_sh_uninstall
-    become_user: "{{ acme_sh_become_user }}"
-    register: issue_result
-    changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
-    failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
+    - name: Issue acme.sh certificate(s) (this will sleep for dns_sleep seconds)
+      command: >-
+        ./acme.sh
+        --issue
+        --domain {{ item.domains | join(" -d ") }}
+        --dns {{ item.dns_provider | default(acme_sh_default_dns_provider) }}
+        --dnssleep {{ item.dns_sleep | default(acme_sh_default_dns_sleep) }}
+        {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
+        {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
+        {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
+        {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"'
+            if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
+        {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"'
+            if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
+        {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"'
+            if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
+        {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
+      args:
+        chdir: "~/.acme.sh"
+      environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
+      loop: "{{ acme_sh_domains }}"
+      when:
+        - acme_sh_domains and item.domains is defined and item.domains
+        - item.dns_provider | default(acme_sh_default_dns_provider)
+        - item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys)
+        - item.force_renew is undefined or not item.force_renew
+        - item.custom_command is undefined or not item.custom_command
+        - item.remove is undefined or not item.remove
+        - not acme_sh_uninstall
+      become_user: "{{ acme_sh_become_user }}"
+      register: issue_result
+      changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
+      failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
   when:
     acme_sh_provider is defined and acme_sh_provider == 'dns'
 
-
-- block:
-
-  - name: issue acme.sh certificate(s) with nginx
-    command: >-
-      ./acme.sh
-      --issue
-      --nginx
-      --domain {{ item.domains | join(" --domain ") }}
-      --webroot {{ item.webroot | default( acme_sh_default_webroot ) }}
-      {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
-      {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
-      {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
-      {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"' if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
-      {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"' if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
-      {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"' if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
-      {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
-    args:
-      chdir: "~/.acme.sh"
-    environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
-    loop: "{{ acme_sh_domains }}"
-    when:
-      - acme_sh_domains and item.domains is defined and item.domains
-      - item.force_renew is undefined or not item.force_renew
-      - item.custom_command is undefined or not item.custom_command
-      - item.remove is undefined or not item.remove
-      - not acme_sh_uninstall
-    become_user: "{{ acme_sh_become_user }}"
-    register: issue_result
-    changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
-    failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
-
-#  - name: Run custom acme.sh command
-#    command: ./acme.sh {{ item.custom_command }}
-#    args:
-#      chdir: "~/.acme.sh"
-#    # environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
-#    loop: "{{ acme_sh_domains }}"
-#    when:
-#      - acme_sh_domains and item.domains is defined and item.domains
-#      - item.dns_provider | default(acme_sh_default_dns_provider)
-#      - item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys)
-#      - item.custom_command is defined and item.custom_command
-#      - item.remove is undefined or not item.remove
-#      - not acme_sh_uninstall
-#    become_user: "{{ acme_sh_become_user }}"
+- name: nxinx
+  block:
+    - name: issue acme.sh certificate(s) with nginx
+      command: >-
+        ./acme.sh
+        --issue
+        --nginx
+        --domain {{ item.domains | join(" --domain ") }}
+        --webroot {{ item.webroot | default( acme_sh_default_webroot ) }}
+        {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
+        {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
+        {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
+        {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"'
+            if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
+        {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"'
+            if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
+        {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"'
+            if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
+        {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
+      args:
+        chdir: "~/.acme.sh"
+      environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
+      loop: "{{ acme_sh_domains }}"
+      when:
+        - acme_sh_domains and item.domains is defined and item.domains
+        - item.force_renew is undefined or not item.force_renew
+        - item.custom_command is undefined or not item.custom_command
+        - item.remove is undefined or not item.remove
+        - not acme_sh_uninstall
+      become_user: "{{ acme_sh_become_user }}"
+      register: issue_result
+      changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
+      failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
 
   when:
     acme_sh_provider is defined and acme_sh_provider == 'nginx'
 
-- block:
-
-  - name: issue acme.sh certificate(s) with standalone
-    command: >-
-      ./acme.sh
-      --issue
-      --domain {{ item.domains | join(" --domain ") }}
-      --webroot {{ item.webroot | default( acme_sh_default_webroot ) }}
-      {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
-      {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
-      {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
-      {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"' if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
-      {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"' if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
-      {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"' if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
-      {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
-    args:
-      chdir: "~/.acme.sh"
-    environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
-    loop: "{{ acme_sh_domains }}"
-    when:
-      - acme_sh_domains and item.domains is defined and item.domains
-      - item.force_renew is undefined or not item.force_renew
-      - item.custom_command is undefined or not item.custom_command
-      - item.remove is undefined or not item.remove
-      - not acme_sh_uninstall
-    become_user: "{{ acme_sh_become_user }}"
-    register: issue_result
-    changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
-    failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
+- name: standalone
+  block:
+    - name: issue acme.sh certificate(s) with standalone
+      command: >-
+        ./acme.sh
+        --issue
+        --domain {{ item.domains | join(" --domain ") }}
+        --webroot {{ item.webroot | default( acme_sh_default_webroot ) }}
+        {{ "--force" if item.force_issue | default(acme_sh_default_force_issue) else "" }}
+        {{ "--staging" if item.staging | default(acme_sh_default_staging) else "" }}
+        {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
+        {{ "--pre-hook " + '"' + item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) + '"'
+            if item.issue_pre_hook | default(acme_sh_default_issue_pre_hook) else "" }}
+        {{ "--post-hook " + '"' + item.issue_post_hook | default(acme_sh_default_issue_post_hook) + '"'
+            if item.issue_post_hook | default(acme_sh_default_issue_post_hook) else "" }}
+        {{ "--renew-hook " + '"' + item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) + '"'
+            if item.issue_renew_hook | default(acme_sh_default_issue_renew_hook) else "" }}
+        {{ item.extra_flags_issue | default(acme_sh_default_extra_flags_issue) }}
+      args:
+        chdir: "~/.acme.sh"
+      environment: "{{ item.dns_provider_api_keys | default(acme_sh_default_dns_provider_api_keys) }}"
+      loop: "{{ acme_sh_domains }}"
+      when:
+        - acme_sh_domains and item.domains is defined and item.domains
+        - item.force_renew is undefined or not item.force_renew
+        - item.custom_command is undefined or not item.custom_command
+        - item.remove is undefined or not item.remove
+        - not acme_sh_uninstall
+      become_user: "{{ acme_sh_become_user }}"
+      register: issue_result
+      changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
+      failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
 
   when:
     acme_sh_provider is defined and acme_sh_provider == 'standalone'
@@ -356,7 +338,7 @@
   args:
     chdir: "~/.acme.sh"
   when: acme_sh_list_domains and not acme_sh_uninstall
-  changed_when: False
+  changed_when: false
   register: list_domains
   become_user: "{{ acme_sh_become_user }}"
 
