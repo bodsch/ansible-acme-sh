@@ -43,15 +43,16 @@
   when: not acme_sh_uninstall
 
 - name: git clone {{ acme_sh_git_url }}
+  become_user: "{{ acme_sh_become_user }}"
   git:
     repo: "{{ acme_sh_git_url }}"
     version: "{{ acme_sh_git_version }}"
     dest: "{{ acme_sh_git_clone_dest }}"
     update: "{{ acme_sh_git_update }}"
   when: not acme_sh_uninstall
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Install acme.sh
+  become_user: "{{ acme_sh_become_user }}"
   command: >-
     ./acme.sh
     --install
@@ -63,15 +64,15 @@
     creates: "~/.acme.sh/acme.sh"
   when:
     not acme_sh_uninstall
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Determine if acme.sh is installed
+  become_user: "{{ acme_sh_become_user }}"
   stat:
     path: "~/.acme.sh/acme.sh"
   register: is_acme_sh_installed
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Upgrade acme.sh
+  become_user: "{{ acme_sh_become_user }}"
   command: ./acme.sh --upgrade
   args:
     chdir: "~/.acme.sh"
@@ -81,7 +82,6 @@
     - not acme_sh_uninstall
   register: upgrade_result
   changed_when: upgrade_result.rc == 0 and "Upgrade success" in upgrade_result.stdout
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Create certificate path
   file:
@@ -93,15 +93,16 @@
   when: not acme_sh_uninstall
 
 - name: Uninstall acme.sh and disable all certificate renewals
+  become_user: "{{ acme_sh_become_user }}"
   command: ./acme.sh --uninstall
   args:
     chdir: "~/.acme.sh"
   when:
     - acme_sh_uninstall | bool
     - is_acme_sh_installed.stat.exists
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Remove acme.sh certificate(s) renewals from cron job
+  become_user: "{{ acme_sh_become_user }}"
   command: >-
     ./acme.sh --remove -d {{ item.domains | first }}
     {{ "--debug" if item.debug | default(acme_sh_default_debug) else "" }}
@@ -113,10 +114,10 @@
     - acme_sh_domains and item.domains is defined and item.domains
     - item.remove is defined and item.remove
     - not acme_sh_uninstall
-  become_user: "{{ acme_sh_become_user }}"
   register: remove_result
 
 - name: Remove acme.sh internal certificate files
+  become_user: "{{ acme_sh_become_user }}"
   file:
     path: "~/.acme.sh/{{ item.domains | first }}"
     state: "absent"
@@ -125,7 +126,6 @@
     - item.remove is defined and item.remove
     - not acme_sh_uninstall
   loop: "{{ acme_sh_domains }}"
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: Remove acme.sh installed certificate files
   file:
@@ -138,6 +138,7 @@
     - not acme_sh_uninstall
 
 - name: Remove acme.sh's cloned source code, installation path and log files
+  become_user: "{{ acme_sh_become_user }}"
   file:
     path: "{{ item }}"
     state: "absent"
@@ -146,11 +147,11 @@
     - "~/.acme.sh"
   when:
     - acme_sh_uninstall | bool
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: dns
   block:
     - name: Run custom acme.sh command
+      become_user: "{{ acme_sh_become_user }}"
       command: ./acme.sh {{ item.custom_command }}
       args:
         chdir: "~/.acme.sh"
@@ -163,9 +164,9 @@
         - item.custom_command is defined and item.custom_command
         - item.remove is undefined or not item.remove
         - not acme_sh_uninstall
-      become_user: "{{ acme_sh_become_user }}"
 
     - name: Issue acme.sh certificate(s) (this will sleep for dns_sleep seconds)
+      become_user: "{{ acme_sh_become_user }}"
       command: >-
         ./acme.sh
         --issue
@@ -194,7 +195,6 @@
         - item.custom_command is undefined or not item.custom_command
         - item.remove is undefined or not item.remove
         - not acme_sh_uninstall
-      become_user: "{{ acme_sh_become_user }}"
       register: issue_result
       changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
       failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
@@ -204,6 +204,7 @@
 - name: nxinx
   block:
     - name: issue acme.sh certificate(s) with nginx
+      become_user: "{{ acme_sh_become_user }}"
       command: >-
         ./acme.sh
         --issue
@@ -230,7 +231,6 @@
         - item.custom_command is undefined or not item.custom_command
         - item.remove is undefined or not item.remove
         - not acme_sh_uninstall
-      become_user: "{{ acme_sh_become_user }}"
       register: issue_result
       changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
       failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
@@ -241,6 +241,7 @@
 - name: standalone
   block:
     - name: issue acme.sh certificate(s) with standalone
+      become_user: "{{ acme_sh_become_user }}"
       command: >-
         ./acme.sh
         --issue
@@ -266,7 +267,6 @@
         - item.custom_command is undefined or not item.custom_command
         - item.remove is undefined or not item.remove
         - not acme_sh_uninstall
-      become_user: "{{ acme_sh_become_user }}"
       register: issue_result
       changed_when: issue_result.rc == 0 and "Cert success" in issue_result.stdout
       failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
@@ -275,6 +275,7 @@
     acme_sh_provider is defined and acme_sh_provider == 'standalone'
 
 - name: Force renew acme.sh certificate(s)
+  become_user: "{{ acme_sh_become_user }}"
   command: >-
     ./acme.sh
     --renew
@@ -291,7 +292,6 @@
     - item.force_renew is defined and item.force_renew
     - item.remove is undefined or not item.remove
     - not acme_sh_uninstall
-  become_user: "{{ acme_sh_become_user }}"
   register: renew_result
   failed_when: renew_result.rc != 0 and "Reload error for" not in renew_result.stderr
 
@@ -300,6 +300,7 @@
     path: "{{ acme_sh_copy_certs_to_path }}/{{ item.domains | first }}*"
     group: "{{ acme_sh_become_user }}"
     owner: "{{ acme_sh_become_user }}"
+    mode: 0666
   loop:
     - "{{ acme_sh_domains }}"
   when:
@@ -309,6 +310,7 @@
     - not acme_sh_uninstall
 
 - name: install acme.sh certificate(s)
+  become_user: "{{ acme_sh_become_user }}"
   command: >-
     ./acme.sh
     --install-cert
@@ -328,19 +330,18 @@
     - item.custom_command is undefined or not item.custom_command
     - item.remove is undefined or not item.remove
     - not acme_sh_uninstall
-  become_user: "{{ acme_sh_become_user }}"
   register: install_cert_result
   changed_when: issue_result.results[domains_index].changed or renew_result.results[domains_index].changed
   failed_when: install_cert_result.rc != 0 and "Reload error for" not in install_cert_result.stderr
 
 - name: Register acme.sh certificate information
+  become_user: "{{ acme_sh_become_user }}"
   command: ./acme.sh --list
   args:
     chdir: "~/.acme.sh"
   when: acme_sh_list_domains and not acme_sh_uninstall
   changed_when: false
   register: list_domains
-  become_user: "{{ acme_sh_become_user }}"
 
 - name: List acme.sh certificate information
   debug:
