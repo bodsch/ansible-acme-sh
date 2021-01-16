@@ -8,4 +8,4 @@
 
 
   roles:
-    - role: bodsch.acme_sh
+    - role: ansible-acme-sh
