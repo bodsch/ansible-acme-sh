@@ -19,6 +19,7 @@ def get_vars(host):
     """
     cwd = os.getcwd()
     pp.pprint(cwd)
+    pp.pprint(os.listdir(cwd))
 
     file_defaults = "file={}/defaults/main.yml name=role_defaults".format("../..")
     file_vars = "file={}/vars/main.yml name=role_vars".format("../..")
