@@ -17,14 +17,20 @@ def get_vars(host):
     """
 
     """
-    # cwd = os.getcwd()
+    cwd = os.getcwd()
+    pp.pprint(cwd)
+
     file_defaults = "file={}/defaults/main.yml name=role_defaults".format("../..")
     file_vars = "file={}/vars/main.yml name=role_vars".format("../..")
     file_molecule = "file=./group_vars/all/vars.yml name=test_vars"
 
+    pp.pprint(file_defaults)
+
     defaults_vars = host.ansible("include_vars", file_defaults).get("ansible_facts").get("role_defaults")
     vars_vars = host.ansible("include_vars", file_vars).get("ansible_facts").get("role_vars")
     molecule_vars = host.ansible("include_vars", file_molecule).get("ansible_facts").get("test_vars")
+
+    pp.pprint(defaults_vars)
 
     ansible_vars = defaults_vars
     ansible_vars.update(vars_vars)
@@ -37,7 +43,6 @@ def get_vars(host):
 
 
 def test_user(host, get_vars):
-
     user_name = get_vars.get('acme_sh_become_user')
 
     assert host.group(user_name).exists

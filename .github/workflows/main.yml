@@ -43,18 +43,18 @@ jobs:
       fail-fast: false
       matrix:
         distro:
-          - debian9
+          # - debian9
           - debian10
-          - ubuntu1804
-          - ubuntu2004
-          - centos8
+          # - ubuntu1804
+          # - ubuntu2004
+          # - centos8
         python-version:
-          - '3.7'
-          - '3.8'
+          # - '3.7'
+          # - '3.8'
           - '3.9'
         ansible-version:
-          - '2.8'
-          - '2.9'
+          # - '2.8'
+          # - '2.9'
           - '2.10'
 
     steps:
