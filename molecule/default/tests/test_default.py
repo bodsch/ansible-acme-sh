@@ -19,10 +19,29 @@ def base_directory():
 
     if('group_vars' in os.listdir(cwd)):
         directory = "../.."
+        molecule_directory = "."
     else:
-        directory = "molecule"
+        directory = "."
+        molecule_directory = "molecule/default"
 
-    return directory
+    return directory, molecule_directory
+
+@pytest.fixture(scope='module')
+def ansible_vars(host):
+    """
+    Return a dict of the variable defined in the role tested or the inventory.
+    Ansible variable precedence is respected.
+    """
+    defaults_files = "file=../../defaults/main.yml"
+    vars_files = "file=../../vars/main.yml"
+
+    host.ansible("setup")
+    host.ansible("include_vars", defaults_files)
+    host.ansible("include_vars", vars_files)
+    all_vars = host.ansible.get_variables()
+    all_vars["ansible_play_host_all"] = testinfra_hosts
+    templar = Templar(loader=DataLoader(), variables=all_vars)
+    return templar.template(all_vars, fail_on_undefined=False)
 
 
 @pytest.fixture()
@@ -30,13 +49,17 @@ def get_vars(host):
     """
 
     """
-    base_dir = base_directory()
+    base_dir, molecule_dir = base_directory()
+
+    pp.pprint(" => '{}' / '{}'".format(base_dir, molecule_dir))
 
     file_defaults = "file={}/defaults/main.yml name=role_defaults".format(base_dir)
     file_vars = "file={}/vars/main.yml name=role_vars".format(base_dir)
-    file_molecule = "file=./group_vars/all/vars.yml name=test_vars"
+    file_molecule = "file={}/group_vars/all/vars.yml name=test_vars".format(molecule_dir)
 
     pp.pprint(file_defaults)
+    pp.pprint(file_vars)
+    pp.pprint(file_molecule)
 
     defaults_vars = host.ansible("include_vars", file_defaults).get("ansible_facts").get("role_defaults")
     vars_vars = host.ansible("include_vars", file_vars).get("ansible_facts").get("role_vars")
