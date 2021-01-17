@@ -83,25 +83,15 @@ def test_user(host, get_vars):
     assert host.group(user_name).exists
     assert host.user(user_name).exists
     assert user_name in host.user(user_name).groups
-    assert True == False
+
 
 @pytest.mark.parametrize("dirs", [
     "/etc/ssl/ansible",
+    "/srv/www/letsencrypt/.well-known/acme-challenge"
 ])
 def test_directories(host, dirs):
 
     d = host.file(dirs)
-    assert d.is_directory
-    assert d.exists
-
-
-def test_acme_dir(host, get_vars):
-
-    user_name = get_vars.get('acme_sh_become_user')
-
-    dir = "/srv/www/{user}/.well-known/acme-challenge".format(user=user_name)
-
-    d = host.file(dir)
     assert d.is_directory
     assert d.exists
 
