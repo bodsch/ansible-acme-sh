@@ -27,7 +27,6 @@ def base_directory():
     return directory, molecule_directory
 
 
-
 @pytest.fixture()
 def get_vars(host):
     """
