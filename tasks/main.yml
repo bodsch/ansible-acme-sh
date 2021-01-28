@@ -22,7 +22,7 @@
 
 - name: install dependencies
   package:
-    name: [ git, "{{ acme_ssh_used_cron_daemon }}" ]
+    name: [git, "{{ acme_ssh_used_cron_daemon }}"]
     state: present
 
 - name: create acme challenge directory

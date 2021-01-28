@@ -3,8 +3,11 @@
 based on the original [acme.sh](https://github.com/Neilpang/acme.sh)
 
 https://medium.com/@pavlakis/using-acme-sh-to-generate-letsencrypt-certificates-c98f28752e9f
+
 https://github.com/Neilpang/acme.sh/wiki/dns-manual-mode
+
 https://wiki.alpinelinux.org/wiki/Nginx_as_reverse_proxy_with_acme_(letsencrypt)
+
 
 It is an [Ansible](http://www.ansible.com/home) role to:
 
