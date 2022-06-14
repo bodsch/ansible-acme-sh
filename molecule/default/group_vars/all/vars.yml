@@ -10,6 +10,8 @@ acme_sh_account_email: info@boone-schulz.de
 acme_sh_provider: standalone
 acme_sh_copy_certs_to_path: /etc/ssl/ansible
 
+acme_sh_default_staging: true
+
 acme_sh_domains:
   - domains: []
     staging: true

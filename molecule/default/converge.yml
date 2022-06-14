@@ -6,6 +6,5 @@
   environment:
     NETRC: ''
 
-
   roles:
     - role: ansible-acme-sh
