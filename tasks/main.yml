@@ -29,7 +29,6 @@
   file:
     path: /srv/www/letsencrypt/.well-known/acme-challenge
     owner: "{{ acme_sh_become_user }}"
-    # group: "{{ __nginx_user }}"
     mode: 0755
     state: directory
 
@@ -40,7 +39,8 @@
     owner: "{{ acme_sh_become_user }}"
     group: "{{ acme_sh_become_user }}"
     mode: 0755
-  when: not acme_sh_uninstall
+  when:
+    - not acme_sh_uninstall
 
 - name: git clone {{ acme_sh_git_url }}
   become_user: "{{ acme_sh_become_user }}"
@@ -49,7 +49,8 @@
     version: "{{ acme_sh_git_version }}"
     dest: "{{ acme_sh_git_clone_dest }}"
     update: "{{ acme_sh_git_update }}"
-  when: not acme_sh_uninstall
+  when:
+    - not acme_sh_uninstall
 
 - name: Install acme.sh
   become_user: "{{ acme_sh_become_user }}"
@@ -63,7 +64,7 @@
     chdir: "{{ acme_sh_git_clone_dest }}"
     creates: "~/.acme.sh/acme.sh"
   when:
-    not acme_sh_uninstall
+    - not acme_sh_uninstall
 
 - name: Determine if acme.sh is installed
   become_user: "{{ acme_sh_become_user }}"
@@ -90,7 +91,8 @@
     owner: "{{ acme_sh_become_user }}"
     group: "{{ acme_sh_become_user }}"
     mode: "0755"
-  when: not acme_sh_uninstall
+  when:
+    - not acme_sh_uninstall
 
 - name: Uninstall acme.sh and disable all certificate renewals
   become_user: "{{ acme_sh_become_user }}"
@@ -272,7 +274,8 @@
       failed_when: issue_result.rc != 0 and "Domains not changed" not in issue_result.stdout
 
   when:
-    acme_sh_provider is defined and acme_sh_provider == 'standalone'
+    - acme_sh_provider is defined
+    - acme_sh_provider == 'standalone'
 
 - name: Force renew acme.sh certificate(s)
   become_user: "{{ acme_sh_become_user }}"
@@ -339,11 +342,15 @@
   command: ./acme.sh --list
   args:
     chdir: "~/.acme.sh"
-  when: acme_sh_list_domains and not acme_sh_uninstall
+  when:
+    - acme_sh_list_domains
+    - not acme_sh_uninstall
   changed_when: false
   register: list_domains
 
 - name: List acme.sh certificate information
   debug:
     msg: "{{ list_domains.stdout_lines }}"
-  when: acme_sh_list_domains and not acme_sh_uninstall
+  when:
+    - acme_sh_list_domains
+    - not acme_sh_uninstall
